@@ -3,6 +3,7 @@ import { analyzeHeuristics, calculateHeuristicScore } from './heuristicAnalysis'
 import { analyzeWithML, loadModels } from './mlAnalysis';
 import { analyzeURL } from './urlAnalysis';
 import { extractTextFromImage } from './ocr';
+import { factCheck } from './factCheck';
 
 const CORS_PROXIES = [
   (url: string) => `https://proxy.cors.sh/${encodeURIComponent(url)}`,
@@ -82,6 +83,9 @@ export class AnalysisEngine {
     const heuristicSpans = analyzeHeuristics(text);
     const heuristicResult = calculateHeuristicScore(heuristicSpans);
 
+    this.onProgress?.('Fact-checking claims...');
+    const factCheckResult = await factCheck(text);
+
     this.onProgress?.('Loading AI models...');
     await this.startModelLoad();
 
@@ -122,11 +126,21 @@ export class AnalysisEngine {
       });
     }
 
+    if (factCheckResult.spans.length > 0) {
+      signals.push({
+        name: 'Factual Accuracy',
+        score: factCheckResult.score,
+        weight: 25,
+        details: factCheckResult.details,
+        spans: factCheckResult.spans,
+      });
+    }
+
     if (heuristicResult.score < 100) {
       signals.push({
         name: 'Language Patterns',
         score: heuristicResult.score,
-        weight: mlResult.modelLoaded ? 25 : 50,
+        weight: mlResult.modelLoaded ? 25 : 35,
         details: heuristicResult.details,
         spans: heuristicSpans,
       });
@@ -134,7 +148,7 @@ export class AnalysisEngine {
       signals.push({
         name: 'Language Patterns',
         score: heuristicResult.score,
-        weight: mlResult.modelLoaded ? 25 : 50,
+        weight: mlResult.modelLoaded ? 25 : 35,
         details: heuristicResult.details,
       });
     }
@@ -156,7 +170,7 @@ export class AnalysisEngine {
       });
     }
 
-    const allSpans = [...heuristicSpans];
+    const allSpans = [...heuristicSpans, ...factCheckResult.spans];
     if (urlSignal && !urlContentFetched) {
       allSpans.push(...urlSignal.spans);
     }
