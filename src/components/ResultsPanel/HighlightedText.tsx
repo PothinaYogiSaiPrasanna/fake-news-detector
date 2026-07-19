@@ -77,7 +77,7 @@ export function HighlightedText({ text, spans }: HighlightedTextProps) {
             <span
               key={i}
               className={`rounded px-0.5 cursor-help transition-colors ${SEVERITY_CLASSES[part.span.severity]}`}
-              title={part.span.reason}
+              title={part.span.sources?.length ? `${part.span.reason}\nSources: ${part.span.sources.map(s => s.title).join(', ')}` : part.span.reason}
             >
               {part.text}
             </span>

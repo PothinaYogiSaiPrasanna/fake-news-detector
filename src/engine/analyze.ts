@@ -133,6 +133,7 @@ export class AnalysisEngine {
         weight: factCheckResult.hasFactualError ? 60 : 25,
         details: factCheckResult.details,
         spans: factCheckResult.spans,
+        sources: factCheckResult.sources,
       });
     }
 

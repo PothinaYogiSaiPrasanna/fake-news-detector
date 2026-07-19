@@ -4,6 +4,31 @@ interface EvidenceBreakdownProps {
   signals: SignalScore[];
 }
 
+function SourcesList({ sources }: { sources: NonNullable<SignalScore['sources']> }) {
+  if (sources.length === 0) return null;
+  const displayed = sources.slice(0, 5);
+  return (
+    <div className="mt-2 space-y-1.5">
+      <p className="text-xs font-medium text-gray-500">Sources ({displayed.length}):</p>
+      {displayed.map((s, i) => (
+        <div key={i} className="flex flex-col gap-0.5">
+          <a
+            href={s.url}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-xs text-blue-600 hover:text-blue-800 hover:underline truncate"
+          >
+            {s.title}
+          </a>
+          {s.snippet && (
+            <p className="text-[11px] text-gray-400 leading-relaxed line-clamp-2">{s.snippet}</p>
+          )}
+        </div>
+      ))}
+    </div>
+  );
+}
+
 function SignalBar({ signal }: { signal: SignalScore }) {
   const getColor = (score: number) => {
     if (score >= 80) return 'bg-green-500';
@@ -38,6 +63,7 @@ function SignalBar({ signal }: { signal: SignalScore }) {
           {signal.spans.length} suspicious indicator{signal.spans.length > 1 ? 's' : ''} found
         </p>
       )}
+      {signal.sources && <SourcesList sources={signal.sources} />}
     </div>
   );
 }

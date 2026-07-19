@@ -6,6 +6,12 @@ export interface AnalysisInput {
   imageFile?: File;
 }
 
+export interface Source {
+  title: string;
+  url: string;
+  snippet: string;
+}
+
 export interface SuspiciousSpan {
   start: number;
   end: number;
@@ -13,6 +19,7 @@ export interface SuspiciousSpan {
   severity: 'low' | 'medium' | 'high';
   reason: string;
   category: string;
+  sources?: Source[];
 }
 
 export interface SignalScore {
@@ -21,6 +28,7 @@ export interface SignalScore {
   weight: number;
   details: string;
   spans?: SuspiciousSpan[];
+  sources?: Source[];
 }
 
 export type Verdict = 'real' | 'likely_real' | 'uncertain' | 'likely_fake' | 'fake';
