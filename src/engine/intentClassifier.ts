@@ -62,12 +62,19 @@ export function classifyIntent(text: string): IntentResult {
   }
 
   const words = trimmed.split(/\s+/);
-  if (words.length >= 3 && /\b(is|are|was|were|has|have|had|will|shall)\b/i.test(trimmed)) {
-    if (/\b(the|a|an|this|that|these|those)\b/i.test(trimmed)) {
+  if (words.length >= 3 && /\b(is|are|was|were)\b/i.test(trimmed)) {
+    if (/\b(the|a|an|this|that|these|those|my|our|his|her|their)\b/i.test(trimmed)) {
       return {
         type: 'claim',
         label: 'Factual Claim',
         explanation: 'This appears to be a factual claim. Running multi-source verification.',
+      };
+    }
+    if (words.length <= 5 && !OPINION_PATTERNS.some(p => p.test(trimmed))) {
+      return {
+        type: 'claim',
+        label: 'Factual Claim',
+        explanation: 'This appears to be a factual claim about someone or something. Running multi-source verification.',
       };
     }
   }
