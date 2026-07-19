@@ -18,46 +18,15 @@ const POSITION_ALIASES: Record<string, string> = {
 const INTERROGATIVES = /\b(who|what|which|when|where|why|how)\b/i;
 const ROLE_QUALIFIERS = /^(current|former|previous|next|acting|new|incumbent|designate)\s+/i;
 
-const PREDICATE_PROPERTY_MAP: Record<string, { prop: string; label: string }> = {
-  'hindu': { prop: 'P140', label: 'religion' },
-  'hinduism': { prop: 'P140', label: 'religion' },
-  'muslim': { prop: 'P140', label: 'religion' },
-  'islam': { prop: 'P140', label: 'religion' },
-  'christian': { prop: 'P140', label: 'religion' },
-  'christianity': { prop: 'P140', label: 'religion' },
-  'buddhist': { prop: 'P140', label: 'religion' },
-  'buddhism': { prop: 'P140', label: 'religion' },
-  'sikh': { prop: 'P140', label: 'religion' },
-  'sikhism': { prop: 'P140', label: 'religion' },
-  'jewish': { prop: 'P140', label: 'religion' },
-  'judaism': { prop: 'P140', label: 'religion' },
-  'jew': { prop: 'P140', label: 'religion' },
-  'atheist': { prop: 'P140', label: 'religion' },
-  'atheism': { prop: 'P140', label: 'religion' },
-  'catholic': { prop: 'P140', label: 'religion' },
-  'doctor': { prop: 'P106', label: 'occupation' },
-  'physician': { prop: 'P106', label: 'occupation' },
-  'engineer': { prop: 'P106', label: 'occupation' },
-  'teacher': { prop: 'P106', label: 'occupation' },
-  'lawyer': { prop: 'P106', label: 'occupation' },
-  'actor': { prop: 'P106', label: 'occupation' },
-  'singer': { prop: 'P106', label: 'occupation' },
-  'writer': { prop: 'P106', label: 'occupation' },
-  'scientist': { prop: 'P106', label: 'occupation' },
-  'indian': { prop: 'P27', label: 'nationality' },
-  'american': { prop: 'P27', label: 'nationality' },
-  'british': { prop: 'P27', label: 'nationality' },
-  'chinese': { prop: 'P27', label: 'nationality' },
-  'french': { prop: 'P27', label: 'nationality' },
-  'german': { prop: 'P27', label: 'nationality' },
-  'japanese': { prop: 'P27', label: 'nationality' },
-  'russian': { prop: 'P27', label: 'nationality' },
-  'italian': { prop: 'P27', label: 'nationality' },
-  'australian': { prop: 'P27', label: 'nationality' },
-  'canadian': { prop: 'P27', label: 'nationality' },
-  'male': { prop: 'P21', label: 'gender' },
-  'female': { prop: 'P21', label: 'gender' },
-};
+const RELEVANT_PROPERTIES: Array<{ prop: string; label: string }> = [
+  { prop: 'P140', label: 'religion' },
+  { prop: 'P106', label: 'occupation' },
+  { prop: 'P27', label: 'country of citizenship' },
+  { prop: 'P17', label: 'country' },
+  { prop: 'P21', label: 'gender' },
+  { prop: 'P172', label: 'ethnic group' },
+  { prop: 'P103', label: 'native language' },
+];
 
 interface ExtractedClaim {
   subject: string; role: string; location: string; fullMatch: string; index: number;
@@ -162,9 +131,6 @@ async function verifyGeneralClaim(claim: ExtractedClaim): Promise<{
   actualValue: string;
 } | null> {
   const predicateLower = claim.role.toLowerCase().trim();
-  const propertyInfo = PREDICATE_PROPERTY_MAP[predicateLower];
-  if (!propertyInfo) return null;
-
   const subjectTitle = fmtTitle(claim.subject);
   const subjectId = await getWikidataId(subjectTitle);
   if (!subjectId) return null;
@@ -173,24 +139,34 @@ async function verifyGeneralClaim(claim: ExtractedClaim): Promise<{
   if (!subjectData) return null;
 
   const subjectLabel = subjectData?.entities?.[subjectId]?.labels?.en?.value || claim.subject;
-  const propertyClaims = subjectData?.entities?.[subjectId]?.claims?.[propertyInfo.prop];
-  if (!propertyClaims || propertyClaims.length === 0) return null;
+  const subjectsClaims = subjectData?.entities?.[subjectId]?.claims;
+  if (!subjectsClaims) return null;
 
-  for (const pc of propertyClaims) {
-    const valueId = pc?.mainsnak?.datavalue?.value?.id;
-    if (!valueId) continue;
+  const wordMatch = (a: string, b: string) => {
+    const escaped = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    return new RegExp(`\\b${escaped(a)}\\b`, 'i').test(b);
+  };
 
-    const valueLabel = await getEntityLabel(valueId);
-    if (!valueLabel) continue;
+  for (const { prop, label } of RELEVANT_PROPERTIES) {
+    const propClaims = subjectsClaims[prop];
+    if (!propClaims || propClaims.length === 0) continue;
 
-    const valueLower = valueLabel.toLowerCase().trim();
+    for (const pc of propClaims) {
+      const valueId = pc?.mainsnak?.datavalue?.value?.id;
+      if (!valueId) continue;
 
-    if (valueLower === predicateLower || valueLower.includes(predicateLower) || predicateLower.includes(valueLower)) {
-      return null;
+      const valueLabel = await getEntityLabel(valueId);
+      if (!valueLabel) continue;
+
+      const valueLower = valueLabel.toLowerCase().trim();
+
+      if (valueLower === predicateLower || wordMatch(predicateLower, valueLower) || wordMatch(valueLower, predicateLower)) {
+        return null;
+      }
+
+      const correctFact = `According to Wikidata, ${subjectLabel}'s ${label} is ${valueLabel}, not ${claim.role}.`;
+      return { contradicted: true, correctFact, personId: subjectId, personName: subjectLabel, propertyLabel: label, actualValue: valueLabel };
     }
-
-    const correctFact = `According to Wikidata, ${subjectLabel}'s ${propertyInfo.label} is ${valueLabel}, not ${claim.role}.`;
-    return { contradicted: true, correctFact, personId: subjectId, personName: subjectLabel, propertyLabel: propertyInfo.label, actualValue: valueLabel };
   }
 
   return null;
@@ -251,8 +227,8 @@ export async function factCheck(text: string): Promise<{
     const verifyResult = await verifyWikidataClaim(claim);
     if (verifyResult) {
       if (claim.subject.toLowerCase().trim() === verifyResult.personName.toLowerCase().trim() ||
-          claim.subject.toLowerCase().includes(verifyResult.personName.toLowerCase()) ||
-          verifyResult.personName.toLowerCase().includes(claim.subject.toLowerCase())) {
+          new RegExp(`\\b${verifyResult.personName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, 'i').test(claim.subject) ||
+          new RegExp(`\\b${claim.subject.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, 'i').test(verifyResult.personName)) {
         verified++;
         continue;
       }
