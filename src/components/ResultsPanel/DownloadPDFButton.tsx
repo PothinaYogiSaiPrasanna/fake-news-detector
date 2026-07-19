@@ -81,7 +81,7 @@ export function DownloadPDFButton({ result }: DownloadPDFButtonProps) {
       const pdf = new jsPDF('p', 'mm', 'a4');
       const pdfWidth = pdf.internal.pageSize.getWidth();
 
-      pdf.html(html, {
+      await pdf.html(html, {
         x: 10, y: 10, width: pdfWidth - 20,
         windowWidth: 800, autoPaging: 'text',
         margin: [10, 10, 10, 10],
