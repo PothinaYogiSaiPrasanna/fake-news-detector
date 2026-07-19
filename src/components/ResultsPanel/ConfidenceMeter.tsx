@@ -1,11 +1,20 @@
+import { useEffect, useState } from 'react';
+
 interface ConfidenceMeterProps {
   score: number;
 }
 
 export function ConfidenceMeter({ score }: ConfidenceMeterProps) {
+  const [animatedScore, setAnimatedScore] = useState(0);
+  useEffect(() => {
+    const timer = setTimeout(() => setAnimatedScore(score), 100);
+    return () => clearTimeout(timer);
+  }, [score]);
+
   const radius = 72;
   const circumference = 2 * Math.PI * radius;
-  const offset = circumference - (score / 100) * circumference;
+  const displayScore = animatedScore;
+  const offset = circumference - (displayScore / 100) * circumference;
 
   const getColor = () => {
     if (score >= 80) return { stroke: '#16a34a', text: 'text-green-600' };
@@ -51,7 +60,7 @@ export function ConfidenceMeter({ score }: ConfidenceMeterProps) {
           />
         </svg>
         <div className="absolute inset-0 flex flex-col items-center justify-center">
-          <span className={`text-4xl font-bold ${colors.text}`}>{score}</span>
+          <span className={`text-4xl font-bold ${colors.text}`}>{Math.round(displayScore)}</span>
           <span className="text-sm text-gray-500">/ 100</span>
         </div>
       </div>

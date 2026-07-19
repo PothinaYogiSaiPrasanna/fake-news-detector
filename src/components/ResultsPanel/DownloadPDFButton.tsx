@@ -53,7 +53,7 @@ export function DownloadPDFButton({ result }: DownloadPDFButtonProps) {
     } finally {
       setGenerating(false);
     }
-  }, [result]);
+  }, []);
 
   const getVerdictLabel = (v: string) => {
     const map: Record<string, string> = {

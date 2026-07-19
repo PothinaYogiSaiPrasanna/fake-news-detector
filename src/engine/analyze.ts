@@ -5,8 +5,8 @@ import { analyzeURL } from './urlAnalysis';
 import { extractTextFromImage } from './ocr';
 
 const CORS_PROXIES = [
-  (url: string) => `https://api.allorigins.win/raw?url=${encodeURIComponent(url)}`,
-  (url: string) => `https://corsproxy.io/?url=${encodeURIComponent(url)}`,
+  (url: string) => `https://proxy.cors.sh/${encodeURIComponent(url)}`,
+  (url: string) => `https://corsproxy.org/?${encodeURIComponent(url)}`,
 ];
 
 async function fetchURLContent(url: string): Promise<string> {
@@ -50,6 +50,7 @@ export class AnalysisEngine {
   async analyze(input: AnalysisInput): Promise<AnalysisResult> {
     let text = '';
     let urlSignal: { score: number; details: string; spans: SuspiciousSpan[] } | null = null;
+    let urlContentFetched = false;
 
     switch (input.type) {
       case 'text':
@@ -59,6 +60,7 @@ export class AnalysisEngine {
         urlSignal = analyzeURL(input.content);
         this.onProgress?.('Fetching URL content...');
         const fetched = await fetchURLContent(input.content);
+        urlContentFetched = !!fetched;
         text = fetched || input.content;
         if (!fetched) {
           this.onProgress?.('Could not fetch page content, analyzing URL only...');
@@ -154,7 +156,10 @@ export class AnalysisEngine {
       });
     }
 
-    const allSpans = [...heuristicSpans, ...(urlSignal?.spans || [])];
+    const allSpans = [...heuristicSpans];
+    if (urlSignal && !urlContentFetched) {
+      allSpans.push(...urlSignal.spans);
+    }
     allSpans.sort((a, b) => a.start - b.start);
 
     let verdict: Verdict;

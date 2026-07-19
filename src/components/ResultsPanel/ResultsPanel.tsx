@@ -30,15 +30,15 @@ export function ResultsPanel({ result }: ResultsPanelProps) {
         </div>
       </div>
 
-      {result.suspiciousSpans.length > 0 && (
-        <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
-          <h2 className="text-lg font-semibold text-gray-900 mb-1">Analyzed Text with Highlights</h2>
+      <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+        <h2 className="text-lg font-semibold text-gray-900 mb-1">Analyzed Text</h2>
+        {result.suspiciousSpans.length > 0 && (
           <p className="text-sm text-gray-500 mb-4">
             Hover over highlighted text to see why it was flagged.
           </p>
-          <HighlightedText text={result.originalText} spans={result.suspiciousSpans} />
-        </div>
-      )}
+        )}
+        <HighlightedText text={result.originalText} spans={result.suspiciousSpans} />
+      </div>
 
       <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
         <EvidenceBreakdown signals={result.signals} />

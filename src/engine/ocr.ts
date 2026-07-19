@@ -5,10 +5,10 @@ export async function extractTextFromImage(
   onProgress?: (msg: string) => void,
 ): Promise<string> {
   try {
-    const Tesseract = await import('tesseract.js');
+    const { createWorker } = await import('tesseract.js');
 
     onProgress?.('Loading OCR engine...');
-    worker = await Tesseract.createWorker('eng');
+    worker = await createWorker('eng');
 
     onProgress?.('Performing OCR...');
     const { data } = await worker.recognize(imageFile);

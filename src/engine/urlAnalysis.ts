@@ -128,7 +128,7 @@ export function analyzeURL(url: string): URLSignal {
       });
     }
 
-    const specialChars = (path.match(/[^a-zA-Z0-9\/\-_.~]/g) || []).length;
+    const specialChars = (path.match(/[^a-zA-Z0-9/\-_.~]/g) || []).length;
     if (specialChars > 5) {
       spans.push({
         start: pathIdx, end: pathIdx + path.length,
