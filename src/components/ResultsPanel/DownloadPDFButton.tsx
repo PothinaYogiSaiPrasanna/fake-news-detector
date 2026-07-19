@@ -7,34 +7,27 @@ interface DownloadPDFButtonProps {
 
 function buildReportHTML(result: AnalysisResult): string {
   const date = new Date(result.analyzedAt).toLocaleString();
-  const signals = result.signals || [];
-  const suspiciousSpans = result.suspiciousSpans || [];
 
-  const signalsHtml = signals.map(s => `
-    <div style="margin-bottom:12px;padding:8px 12px;background:#f9fafb;border-radius:8px">
-      <div style="display:flex;justify-content:space-between;margin-bottom:4px">
-        <span style="font-weight:500;font-size:14px;color:#374151">${s.name}</span>
-        <span style="font-weight:600;font-size:14px;color:${s.score >= 60 ? '#16a34a' : '#d97706'}">${Math.round(s.score)}%</span>
-      </div>
-      <div style="height:6px;background:#e5e7eb;border-radius:3px;margin-bottom:4px;overflow:hidden">
-        <div style="height:100%;width:${s.score}%;background:${s.score >= 60 ? '#22c55e' : '#f59e0b'};border-radius:3px"></div>
-      </div>
-      <p style="font-size:12px;color:#6b7280;margin:0">${s.details}</p>
-    </div>
-  `).join('');
-
-  const suspiciousHtml = suspiciousSpans.length > 0 ? `
-    <div style="margin-top:24px;padding:12px;background:#fef2f2;border-radius:8px;border:1px solid #fecaca">
-      <h3 style="font-size:14px;font-weight:600;color:#991b1b;margin:0 0 8px">
-        ${suspiciousSpans.length} Suspicious Pattern${suspiciousSpans.length > 1 ? 's' : ''} Detected
-      </h3>
-      ${suspiciousSpans.slice(0, 10).map(span => `
-        <div style="font-size:12px;color:#7f1d1d;margin-bottom:4px">
-          <strong>"${span.text.slice(0, 60)}"</strong> — ${span.reason}
+  const suspiciousHtml = result.suspiciousParts.length > 0
+    ? `<div style="margin-top:24px;padding:12px;background:#fef2f2;border-radius:8px;border:1px solid #fecaca">
+      <h3 style="font-size:14px;font-weight:600;color:#991b1b;margin:0 0 8px">Suspicious Content</h3>
+      ${result.suspiciousParts.slice(0, 10).map(sp => `
+        <div style="font-size:12px;color:#7f1d1d;margin-bottom:6px">
+          <strong>"${sp.text.slice(0, 100)}"</strong><br>
+          <span style="color:#991b1b">${sp.reason}</span>
         </div>
       `).join('')}
-    </div>
-  ` : '';
+    </div>` : '';
+
+  const sourcesHtml = result.sources.length > 0
+    ? `<div style="margin-top:16px"><h3 style="font-size:14px;font-weight:600;margin:0 0 8px">Sources</h3>
+      ${result.sources.slice(0, 5).map(s => `
+        <div style="font-size:12px;margin-bottom:4px">
+          <a href="${s.url}" style="color:#2563eb">${s.title}</a>
+          ${s.snippet ? `<p style="color:#6b7280;margin:2px 0">${s.snippet}</p>` : ''}
+        </div>
+      `).join('')}
+    </div>` : '';
 
   const text = result.originalText.length > 2000
     ? result.originalText.slice(0, 2000) + '...'
@@ -49,22 +42,26 @@ function buildReportHTML(result: AnalysisResult): string {
   <div style="border-bottom:2px solid #e5e7eb;padding-bottom:16px;margin-bottom:24px">
     <h1 style="font-size:28px;font-weight:700;margin:0">TruthScope Report</h1>
     <p style="font-size:12px;color:#6b7280;margin:4px 0 0">Generated: ${date}</p>
-    <p style="font-size:12px;color:#6b7280;margin:4px 0 0">Intent: ${result.intent.label}</p>
+    <p style="font-size:12px;color:#6b7280;margin:4px 0 0">Type: ${result.intentLabel}</p>
   </div>
-  ${result.overallScore !== undefined ? `
+  ${result.confidence !== undefined ? `
   <div style="margin-bottom:24px">
-    <div style="font-size:14px;color:#6b7280;margin-bottom:4px">Overall Credibility Score</div>
-    <div style="font-size:48px;font-weight:700">${result.overallScore}/100</div>
+    <div style="font-size:14px;color:#6b7280;margin-bottom:4px">Credibility Score</div>
+    <div style="font-size:48px;font-weight:700">${Math.round(result.confidence)}/100</div>
     ${result.verdict ? `<div style="font-size:16px;color:#6b7280;margin-top:4px">${result.verdict.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase())}</div>` : ''}
   </div>` : ''}
-  ${signals.length > 0 ? `<div style="margin-bottom:24px"><h2 style="font-size:16px;font-weight:600;margin-bottom:12px">Signal Analysis</h2>${signalsHtml}</div>` : ''}
-  <div><h2 style="font-size:16px;font-weight:600;margin-bottom:12px">Analyzed Text</h2>
-    <p style="font-size:13px;line-height:1.6;white-space:pre-wrap">${text.replace(/</g, '&lt;').replace(/>/g, '&gt;')}</p>
+  <div style="margin-bottom:24px">
+    <h2 style="font-size:16px;font-weight:600;margin-bottom:8px">Analysis</h2>
+    <p style="font-size:13px;line-height:1.6;color:#374151">${result.explanation}</p>
   </div>
   ${suspiciousHtml}
+  <div style="margin-top:24px">
+    <h2 style="font-size:16px;font-weight:600;margin-bottom:8px">Analyzed Text</h2>
+    <p style="font-size:13px;line-height:1.6;white-space:pre-wrap">${text.replace(/</g, '&lt;').replace(/>/g, '&gt;')}</p>
+  </div>
+  ${sourcesHtml}
   <div style="margin-top:32px;padding-top:16px;border-top:1px solid #e5e7eb;font-size:11px;color:#9ca3af;text-align:center">
-    Generated by TruthScope — All analysis performed locally in-browser.
-    This is a screening tool, not a definitive truth oracle.
+    Generated by TruthScope — Powered by Gemma 2B, all analysis runs locally in your browser.
   </div>
 </body></html>`;
 }
@@ -76,7 +73,6 @@ export function DownloadPDFButton({ result }: DownloadPDFButtonProps) {
     setGenerating(true);
     try {
       const [{ jsPDF }] = await Promise.all([import('jspdf')]);
-
       const html = buildReportHTML(result);
       const pdf = new jsPDF('p', 'mm', 'a4');
       const pdfWidth = pdf.internal.pageSize.getWidth();

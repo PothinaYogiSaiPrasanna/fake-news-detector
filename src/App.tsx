@@ -38,7 +38,7 @@ function App() {
                   progress={progress}
                 />
                 <p className="text-center text-xs text-gray-400 mt-4">
-                  First analysis loads ML models (~200MB), subsequent runs are instant.
+                  First analysis downloads Gemma 2B (~1.3GB), subsequent runs use cached model.
                 </p>
               </div>
             )}

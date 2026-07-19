@@ -1,89 +1,51 @@
 import type { AnalysisResult } from '../../engine/types';
 import { VerdictBadge } from './VerdictBadge';
 import { ConfidenceMeter } from './ConfidenceMeter';
-import { HighlightedText } from './HighlightedText';
-import { EvidenceBreakdown } from './EvidenceBreakdown';
 import { DownloadPDFButton } from './DownloadPDFButton';
 
 interface ResultsPanelProps {
   result: AnalysisResult;
 }
 
-function GreetingResult({ text }: { text: string }) {
+function GreetingResult({ result }: { result: AnalysisResult }) {
   return (
     <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-8 text-center">
       <div className="text-5xl mb-4">👋</div>
-      <h2 className="text-xl font-semibold text-gray-800 mb-2">
-        Hi there!
-      </h2>
-      <p className="text-gray-500 max-w-md mx-auto leading-relaxed">
-        This looks like a greeting or casual conversation. I'm designed to fact-check news articles, claims, and statements. Try pasting a news headline or something you've heard and I'll verify it for you.
-      </p>
-      <p className="text-xs text-gray-400 mt-4">
-        Input: <span className="italic">"{text.slice(0, 60)}{text.length > 60 ? '...' : ''}"</span>
-      </p>
+      <h2 className="text-xl font-semibold text-gray-800 mb-2">{result.intentLabel}</h2>
+      <p className="text-gray-500 max-w-md mx-auto leading-relaxed">{result.explanation}</p>
     </div>
   );
 }
 
-function OpinionResult({ text }: { text: string }) {
+function OpinionResult({ result }: { result: AnalysisResult }) {
   return (
     <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-8 text-center">
       <div className="text-5xl mb-4">💭</div>
-      <h2 className="text-xl font-semibold text-gray-800 mb-2">
-        Opinion Detected
-      </h2>
-      <p className="text-gray-500 max-w-md mx-auto leading-relaxed">
-        This appears to be a personal opinion or subjective statement. Opinions are based on personal beliefs and perspectives, so they can't be verified as true or false. Try pasting a factual claim for fact-checking.
-      </p>
-      <p className="text-xs text-gray-400 mt-4">
-        Input: <span className="italic">"{text.slice(0, 60)}{text.length > 60 ? '...' : ''}"</span>
-      </p>
+      <h2 className="text-xl font-semibold text-gray-800 mb-2">{result.intentLabel}</h2>
+      <p className="text-gray-500 max-w-md mx-auto leading-relaxed">{result.explanation}</p>
     </div>
   );
 }
 
 function QuestionResult({ result }: { result: AnalysisResult }) {
-  const hasSignals = result.signals && result.signals.length > 0;
   return (
-    <div className="space-y-6">
-      <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
-        <div className="flex items-start gap-4">
-          <div className="text-3xl">❓</div>
-          <div>
-            <h2 className="text-lg font-semibold text-gray-800 mb-1">Question Detected</h2>
-            <p className="text-sm text-gray-500 leading-relaxed">
-              You asked a question. The analysis below shows any relevant fact-checks or patterns found. Questions themselves aren't "fake" — but the claims within them can be checked.
-            </p>
-          </div>
+    <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-8">
+      <div className="flex items-start gap-4 mb-4">
+        <div className="text-3xl">❓</div>
+        <div>
+          <h2 className="text-lg font-semibold text-gray-800 mb-1">{result.intentLabel}</h2>
+          <p className="text-gray-600 leading-relaxed">{result.explanation}</p>
         </div>
       </div>
-      {result.overallScore !== undefined && result.verdict && (
-        <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
-          <div className="flex flex-col sm:flex-row items-center gap-6">
-            <ConfidenceMeter score={result.overallScore} />
-            <div className="text-center sm:text-left flex-1">
-              <div className="flex items-center gap-3 mb-2">
-                <VerdictBadge verdict={result.verdict} />
-              </div>
-              {hasSignals && (
-                <p className="text-sm text-gray-500 mt-1">
-                  Based on {result.signals!.length} signal{result.signals!.length > 1 ? 's' : ''}
-                </p>
-              )}
-            </div>
-          </div>
-        </div>
-      )}
-      {hasSignals && result.signals!.some(s => s.spans && s.spans.length > 0) && (
-        <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
-          <h2 className="text-lg font-semibold text-gray-900 mb-4">Analyzed Text</h2>
-          <HighlightedText text={result.originalText} spans={result.suspiciousSpans || []} />
-        </div>
-      )}
-      {hasSignals && (
-        <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
-          <EvidenceBreakdown signals={result.signals!} />
+      {result.sources.length > 0 && (
+        <div className="mt-4 pt-4 border-t border-gray-100">
+          <p className="text-xs font-medium text-gray-500 mb-2">Sources:</p>
+          {result.sources.map((s, i) => (
+            <a key={i} href={s.url} target="_blank" rel="noopener noreferrer"
+              className="block text-xs text-blue-600 hover:underline mb-1 truncate">
+              {s.title}
+            </a>
+          ))}
         </div>
       )}
     </div>
@@ -95,15 +57,12 @@ function ClaimResult({ result }: { result: AnalysisResult }) {
     <div className="space-y-6">
       <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
         <div className="flex flex-col sm:flex-row items-center gap-6">
-          <ConfidenceMeter score={result.overallScore!} />
+          <ConfidenceMeter score={result.confidence ?? 50} />
           <div className="text-center sm:text-left flex-1">
             <div className="flex items-center gap-3 mb-2">
-              <VerdictBadge verdict={result.verdict!} />
+              {result.verdict && <VerdictBadge verdict={result.verdict} />}
             </div>
-            <p className="text-sm text-gray-500 mt-1">
-              Overall credibility score based on {result.signals!.length} signal{result.signals!.length > 1 ? 's' : ''}
-              {result.modelLoaded ? ' (including AI analysis)' : ' (AI models loading)'}
-            </p>
+            <p className="text-sm text-gray-500 mt-1">{result.explanation}</p>
             <div className="mt-4">
               <DownloadPDFButton result={result} />
             </div>
@@ -111,38 +70,52 @@ function ClaimResult({ result }: { result: AnalysisResult }) {
         </div>
       </div>
 
-      <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
-        <h2 className="text-lg font-semibold text-gray-900 mb-1">Analyzed Text</h2>
-        {result.suspiciousSpans && result.suspiciousSpans.length > 0 && (
-          <p className="text-sm text-gray-500 mb-4">Hover over highlighted text to see why it was flagged.</p>
-        )}
-        <HighlightedText text={result.originalText} spans={result.suspiciousSpans || []} />
-      </div>
+      {result.suspiciousParts.length > 0 && (
+        <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+          <h2 className="text-lg font-semibold text-gray-900 mb-4">Suspicious Content</h2>
+          <div className="space-y-3">
+            {result.suspiciousParts.map((sp, i) => (
+              <div key={i} className="bg-red-50 border border-red-200 rounded-lg p-3">
+                <p className="text-sm font-medium text-red-800 mb-1">&ldquo;{sp.text}&rdquo;</p>
+                <p className="text-xs text-red-600">{sp.reason}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
-      <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
-        <EvidenceBreakdown signals={result.signals!} />
-      </div>
+      {result.sources.length > 0 && (
+        <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+          <h2 className="text-lg font-semibold text-gray-900 mb-4">Sources</h2>
+          <div className="space-y-3">
+            {result.sources.slice(0, 5).map((s, i) => (
+              <div key={i}>
+                <a href={s.url} target="_blank" rel="noopener noreferrer"
+                  className="text-sm text-blue-600 hover:underline font-medium">
+                  {s.title}
+                </a>
+                {s.snippet && <p className="text-xs text-gray-500 mt-0.5">{s.snippet}</p>}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
 
 function UnclearResult({ result }: { result: AnalysisResult }) {
-  const hasSignals = result.signals && result.signals.length > 0;
   return (
     <div className="space-y-6">
-      {result.overallScore !== undefined && result.verdict && (
+      {result.confidence !== undefined && result.verdict && (
         <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
           <div className="flex flex-col sm:flex-row items-center gap-6">
-            <ConfidenceMeter score={result.overallScore} />
+            <ConfidenceMeter score={result.confidence} />
             <div className="text-center sm:text-left flex-1">
               <div className="flex items-center gap-3 mb-2">
                 <VerdictBadge verdict={result.verdict} />
               </div>
-              {hasSignals && (
-                <p className="text-sm text-gray-500 mt-1">
-                  Based on {result.signals!.length} signal{result.signals!.length > 1 ? 's' : ''}
-                </p>
-              )}
+              <p className="text-sm text-gray-500">{result.explanation}</p>
               <div className="mt-4">
                 <DownloadPDFButton result={result} />
               </div>
@@ -150,15 +123,10 @@ function UnclearResult({ result }: { result: AnalysisResult }) {
           </div>
         </div>
       )}
-      {result.suspiciousSpans && result.suspiciousSpans.length > 0 && (
+      {!result.verdict && (
         <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
-          <h2 className="text-lg font-semibold text-gray-900 mb-4">Analyzed Text</h2>
-          <HighlightedText text={result.originalText} spans={result.suspiciousSpans} />
-        </div>
-      )}
-      {hasSignals && (
-        <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
-          <EvidenceBreakdown signals={result.signals!} />
+          <h2 className="text-lg font-semibold text-gray-800 mb-2">{result.intentLabel}</h2>
+          <p className="text-gray-500">{result.explanation}</p>
         </div>
       )}
     </div>
@@ -166,16 +134,21 @@ function UnclearResult({ result }: { result: AnalysisResult }) {
 }
 
 export function ResultsPanel({ result }: ResultsPanelProps) {
-  switch (result.intent.type) {
-    case 'greeting':
-      return <GreetingResult text={result.originalText} />;
-    case 'opinion':
-      return <OpinionResult text={result.originalText} />;
-    case 'question':
-      return <QuestionResult result={result} />;
-    case 'claim':
-      return <ClaimResult result={result} />;
-    default:
-      return <UnclearResult result={result} />;
+  if (result.error) {
+    return (
+      <div className="bg-red-50 border border-red-200 rounded-xl p-6 text-center">
+        <div className="text-3xl mb-2">⚠️</div>
+        <h2 className="text-lg font-semibold text-red-800 mb-2">Analysis Error</h2>
+        <p className="text-red-600">{result.error}</p>
+      </div>
+    );
+  }
+
+  switch (result.intent) {
+    case 'greeting': return <GreetingResult result={result} />;
+    case 'opinion': return <OpinionResult result={result} />;
+    case 'question': return <QuestionResult result={result} />;
+    case 'claim': return <ClaimResult result={result} />;
+    default: return <UnclearResult result={result} />;
   }
 }

@@ -4,45 +4,20 @@ interface VerdictBadgeProps {
   verdict: Verdict;
 }
 
-const CONFIG: Record<Verdict, { label: string; color: string; bg: string; icon: string }> = {
-  real: {
-    label: 'Likely Real',
-    color: 'text-green-800',
-    bg: 'bg-green-100',
-    icon: '✅',
-  },
-  likely_real: {
-    label: 'Likely Real',
-    color: 'text-green-700',
-    bg: 'bg-green-50',
-    icon: '✅',
-  },
-  uncertain: {
-    label: 'Uncertain',
-    color: 'text-amber-800',
-    bg: 'bg-amber-100',
-    icon: '⚠️',
-  },
-  likely_fake: {
-    label: 'Likely Fake',
-    color: 'text-orange-800',
-    bg: 'bg-orange-100',
-    icon: '🚨',
-  },
-  fake: {
-    label: 'Fake',
-    color: 'text-red-800',
-    bg: 'bg-red-100',
-    icon: '🚨',
-  },
+const CONFIG: Record<Verdict, { label: string; classes: string; icon: string }> = {
+  real: { label: 'Likely Real', classes: 'bg-green-100 text-green-800 border-green-300', icon: '✓' },
+  likely_real: { label: 'Likely Real', classes: 'bg-green-100 text-green-800 border-green-300', icon: '✓' },
+  uncertain: { label: 'Uncertain', classes: 'bg-amber-100 text-amber-800 border-amber-300', icon: '?' },
+  likely_fake: { label: 'Likely Fake', classes: 'bg-red-100 text-red-800 border-red-300', icon: '✗' },
+  fake: { label: 'Likely Fake', classes: 'bg-red-100 text-red-800 border-red-300', icon: '✗' },
 };
 
 export function VerdictBadge({ verdict }: VerdictBadgeProps) {
-  const c = CONFIG[verdict];
+  const config = CONFIG[verdict] || CONFIG.uncertain;
   return (
-    <div className={`inline-flex items-center gap-2 px-4 py-2 rounded-full text-sm font-semibold ${c.bg} ${c.color}`}>
-      <span>{c.icon}</span>
-      <span>{c.label}</span>
-    </div>
+    <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-sm font-semibold border ${config.classes}`}>
+      <span>{config.icon}</span>
+      {config.label}
+    </span>
   );
 }

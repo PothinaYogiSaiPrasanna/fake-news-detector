@@ -10,51 +10,27 @@ export interface AnalysisInput {
   imageFile?: File;
 }
 
+export interface SuspiciousPart {
+  text: string;
+  reason: string;
+}
+
 export interface Source {
   title: string;
   url: string;
   snippet: string;
 }
 
-export interface SuspiciousSpan {
-  start: number;
-  end: number;
-  text: string;
-  severity: 'low' | 'medium' | 'high';
-  reason: string;
-  category: string;
-  sources?: Source[];
-}
-
-export interface SignalScore {
-  name: string;
-  score: number;
-  weight: number;
-  details: string;
-  spans?: SuspiciousSpan[];
-  sources?: Source[];
-}
-
-export interface FactCheckSource {
-  name: string;
-  url: string;
-  snippet: string;
-  result: 'supported' | 'contradicted' | 'unverified';
-}
-
-export interface IntentResult {
-  type: IntentType;
-  label: string;
-  explanation: string;
-}
-
 export interface AnalysisResult {
-  intent: IntentResult;
-  overallScore?: number;
+  intent: IntentType;
+  intentLabel: string;
   verdict?: Verdict;
-  signals?: SignalScore[];
-  suspiciousSpans?: SuspiciousSpan[];
+  confidence?: number;
+  explanation: string;
+  suspiciousParts: SuspiciousPart[];
+  sources: Source[];
   originalText: string;
   analyzedAt: Date;
   modelLoaded: boolean;
+  error?: string;
 }
