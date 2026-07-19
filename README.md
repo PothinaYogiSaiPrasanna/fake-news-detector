@@ -1,32 +1,76 @@
-# React + TypeScript + Vite
+# TruthScope — Fake News Detector
 
-This template provides a minimal setup to get React working in Vite with HMR and some Oxlint rules.
+A privacy-first, browser-based misinformation detection tool. All analysis runs **entirely in your browser** — nothing is sent to any server.
 
-Currently, two official plugins are available:
+## Features
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+- **Text Analysis** — Paste news articles, social media posts, or claims
+- **URL Analysis** — Enter a URL to fetch and analyze page content (with fallback to URL-only)
+- **Image Analysis** — Upload screenshots or photos (text extracted via OCR)
+- **AI-Powered Detection** — Two ML models run in-browser via Transformers.js:
+  - RoBERTa OpenAI Detector (AI-generated text detection)
+  - MobileBERT Zero-Shot Classifier (factual vs misleading classification)
+- **Heuristic Pattern Detection** — Clickbait phrases, emotional language, logical fallacies, vague sourcing, and more
+- **Confidence Meter** — Animated circular gauge showing 0-100% credibility score
+- **Suspicious Word Highlighting** — Color-coded highlights with hover explanations
+- **Signal Breakdown** — Per-category analysis with weighted scoring
+- **PDF Export** — Download a styled PDF report
+- **Fully Responsive** — Works on mobile, tablet, and desktop
 
-## React Compiler
+## Tech Stack
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+| Layer | Technology |
+|-------|-----------|
+| Framework | Vite + React 19 + TypeScript |
+| Styling | Tailwind CSS v4 |
+| ML Inference | @huggingface/transformers (ONNX Runtime Web) |
+| OCR | Tesseract.js v7 (WebAssembly) |
+| PDF | html2canvas + jsPDF |
+| Hosting | GitHub Pages (free) |
 
-## Expanding the Oxlint configuration
+## Getting Started
 
-If you are developing a production application, we recommend enabling type-aware lint rules by installing `oxlint-tsgolint` and editing `.oxlintrc.json`:
-
-```json
-{
-  "$schema": "./node_modules/oxlint/configuration_schema.json",
-  "plugins": ["react", "typescript", "oxc"],
-  "options": {
-    "typeAware": true
-  },
-  "rules": {
-    "react/rules-of-hooks": "error",
-    "react/only-export-components": ["warn", { "allowConstantExport": true }]
-  }
-}
+```bash
+npm install
+npm run dev
 ```
 
-See the [Oxlint rules documentation](https://oxc.rs/docs/guide/usage/linter/rules) for the full list of rules and categories.
+Open http://localhost:5173
+
+## Build
+
+```bash
+npm run build
+```
+
+Output in `dist/` — ready for static hosting.
+
+## Deployment
+
+This repo includes a GitHub Actions workflow (`.github/workflows/deploy.yml`) that automatically builds and deploys to GitHub Pages on every push to `main`.
+
+To enable:
+1. Go to repo **Settings > Pages**
+2. Under "Build and deployment", select **Source: GitHub Actions**
+3. Push to `main` — the workflow will deploy automatically
+
+## How It Works
+
+1. **Input**: You provide text, a URL, or an image
+2. **Analysis Engine**: Runs in parallel:
+   - Heuristic pattern detection (50+ patterns across 6 categories)
+   - ML model inference (AI text detection + zero-shot classification)
+   - URL credibility analysis (domain, TLD, structure)
+   - OCR text extraction (for images)
+3. **Results**: Weighted aggregation produces a 0-100% credibility score, verdict, highlighted text, and per-signal breakdown
+
+## Cost
+
+**Zero.** Everything runs in your browser. No API keys, no server, no hosting fees. GitHub Pages is free.
+
+## Limitations
+
+- English text only
+- First load downloads ~200MB of ML models (cached in browser for subsequent use)
+- URL content fetching depends on free CORS proxy availability
+- Not a definitive truth oracle — use as a screening tool
