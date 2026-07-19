@@ -18,6 +18,47 @@ const POSITION_ALIASES: Record<string, string> = {
 const INTERROGATIVES = /\b(who|what|which|when|where|why|how)\b/i;
 const ROLE_QUALIFIERS = /^(current|former|previous|next|acting|new|incumbent|designate)\s+/i;
 
+const PREDICATE_PROPERTY_MAP: Record<string, { prop: string; label: string }> = {
+  'hindu': { prop: 'P140', label: 'religion' },
+  'hinduism': { prop: 'P140', label: 'religion' },
+  'muslim': { prop: 'P140', label: 'religion' },
+  'islam': { prop: 'P140', label: 'religion' },
+  'christian': { prop: 'P140', label: 'religion' },
+  'christianity': { prop: 'P140', label: 'religion' },
+  'buddhist': { prop: 'P140', label: 'religion' },
+  'buddhism': { prop: 'P140', label: 'religion' },
+  'sikh': { prop: 'P140', label: 'religion' },
+  'sikhism': { prop: 'P140', label: 'religion' },
+  'jewish': { prop: 'P140', label: 'religion' },
+  'judaism': { prop: 'P140', label: 'religion' },
+  'jew': { prop: 'P140', label: 'religion' },
+  'atheist': { prop: 'P140', label: 'religion' },
+  'atheism': { prop: 'P140', label: 'religion' },
+  'catholic': { prop: 'P140', label: 'religion' },
+  'doctor': { prop: 'P106', label: 'occupation' },
+  'physician': { prop: 'P106', label: 'occupation' },
+  'engineer': { prop: 'P106', label: 'occupation' },
+  'teacher': { prop: 'P106', label: 'occupation' },
+  'lawyer': { prop: 'P106', label: 'occupation' },
+  'actor': { prop: 'P106', label: 'occupation' },
+  'singer': { prop: 'P106', label: 'occupation' },
+  'writer': { prop: 'P106', label: 'occupation' },
+  'scientist': { prop: 'P106', label: 'occupation' },
+  'indian': { prop: 'P27', label: 'nationality' },
+  'american': { prop: 'P27', label: 'nationality' },
+  'british': { prop: 'P27', label: 'nationality' },
+  'chinese': { prop: 'P27', label: 'nationality' },
+  'french': { prop: 'P27', label: 'nationality' },
+  'german': { prop: 'P27', label: 'nationality' },
+  'japanese': { prop: 'P27', label: 'nationality' },
+  'russian': { prop: 'P27', label: 'nationality' },
+  'italian': { prop: 'P27', label: 'nationality' },
+  'australian': { prop: 'P27', label: 'nationality' },
+  'canadian': { prop: 'P27', label: 'nationality' },
+  'male': { prop: 'P21', label: 'gender' },
+  'female': { prop: 'P21', label: 'gender' },
+};
+
 interface ExtractedClaim {
   subject: string; role: string; location: string; fullMatch: string; index: number;
 }
@@ -112,6 +153,49 @@ async function verifyWikidataClaim(claim: ExtractedClaim): Promise<{
   return { correctFact: `The current ${searchTitle} is ${personName}.`, personName, personId, positionTitle: searchTitle };
 }
 
+async function verifyGeneralClaim(claim: ExtractedClaim): Promise<{
+  contradicted: boolean;
+  correctFact: string;
+  personId: string;
+  personName: string;
+  propertyLabel: string;
+  actualValue: string;
+} | null> {
+  const predicateLower = claim.role.toLowerCase().trim();
+  const propertyInfo = PREDICATE_PROPERTY_MAP[predicateLower];
+  if (!propertyInfo) return null;
+
+  const subjectTitle = fmtTitle(claim.subject);
+  const subjectId = await getWikidataId(subjectTitle);
+  if (!subjectId) return null;
+
+  const subjectData = await fetchJson(`${WIKIDATA_API}/${subjectId}.json`);
+  if (!subjectData) return null;
+
+  const subjectLabel = subjectData?.entities?.[subjectId]?.labels?.en?.value || claim.subject;
+  const propertyClaims = subjectData?.entities?.[subjectId]?.claims?.[propertyInfo.prop];
+  if (!propertyClaims || propertyClaims.length === 0) return null;
+
+  for (const pc of propertyClaims) {
+    const valueId = pc?.mainsnak?.datavalue?.value?.id;
+    if (!valueId) continue;
+
+    const valueLabel = await getEntityLabel(valueId);
+    if (!valueLabel) continue;
+
+    const valueLower = valueLabel.toLowerCase().trim();
+
+    if (valueLower === predicateLower || valueLower.includes(predicateLower) || predicateLower.includes(valueLower)) {
+      return null;
+    }
+
+    const correctFact = `According to Wikidata, ${subjectLabel}'s ${propertyInfo.label} is ${valueLabel}, not ${claim.role}.`;
+    return { contradicted: true, correctFact, personId: subjectId, personName: subjectLabel, propertyLabel: propertyInfo.label, actualValue: valueLabel };
+  }
+
+  return null;
+}
+
 async function gatherSources(personId: string, personName: string, positionTitle: string): Promise<Array<{ title: string; url: string; snippet: string }>> {
   const sources: Array<{ title: string; url: string; snippet: string }> = [];
   const seen = new Set<string>();
@@ -165,33 +249,34 @@ export async function factCheck(text: string): Promise<{
 
   for (const claim of claims) {
     const verifyResult = await verifyWikidataClaim(claim);
-    if (!verifyResult) continue;
+    if (verifyResult) {
+      if (claim.subject.toLowerCase().trim() === verifyResult.personName.toLowerCase().trim() ||
+          claim.subject.toLowerCase().includes(verifyResult.personName.toLowerCase()) ||
+          verifyResult.personName.toLowerCase().includes(claim.subject.toLowerCase())) {
+        verified++;
+        continue;
+      }
 
-    if (claim.subject.toLowerCase().trim() === verifyResult.personName.toLowerCase().trim() ||
-        claim.subject.toLowerCase().includes(verifyResult.personName.toLowerCase()) ||
-        verifyResult.personName.toLowerCase().includes(claim.subject.toLowerCase())) {
-      verified++;
+      contradicted++;
+      const correction = `The current ${verifyResult.positionTitle} is ${verifyResult.personName}, not ${claim.subject}.`;
+      corrections.push(correction);
+      const sources = await gatherSources(verifyResult.personId, verifyResult.personName, verifyResult.positionTitle);
+      allSources.push(...sources);
+      allFactSources.push({ name: `Wikidata: ${verifyResult.personName}`, url: `https://www.wikidata.org/wiki/${verifyResult.personId}`, snippet: correction, result: 'contradicted' });
+      spans.push({ start: claim.index, end: claim.index + claim.fullMatch.length, text: claim.fullMatch, severity: 'high', reason: correction, category: 'factual error', sources });
       continue;
     }
 
-    contradicted++;
-    const correction = `The current ${verifyResult.positionTitle} is ${verifyResult.personName}, not ${claim.subject}.`;
-    corrections.push(correction);
-    const sources = await gatherSources(verifyResult.personId, verifyResult.personName, verifyResult.positionTitle);
-    allSources.push(...sources);
-
-    allFactSources.push({
-      name: `Wikidata: ${verifyResult.personName}`,
-      url: `https://www.wikidata.org/wiki/${verifyResult.personId}`,
-      snippet: correction,
-      result: 'contradicted',
-    });
-
-    spans.push({
-      start: claim.index, end: claim.index + claim.fullMatch.length,
-      text: claim.fullMatch, severity: 'high', reason: correction,
-      category: 'factual error', sources,
-    });
+    const generalResult = await verifyGeneralClaim(claim);
+    if (generalResult) {
+      contradicted++;
+      const correction = generalResult.correctFact;
+      corrections.push(correction);
+      const sources = await gatherSources(generalResult.personId, generalResult.personName, generalResult.propertyLabel);
+      allSources.push(...sources);
+      allFactSources.push({ name: `Wikidata: ${generalResult.personName}`, url: `https://www.wikidata.org/wiki/${generalResult.personId}`, snippet: correction, result: 'contradicted' });
+      spans.push({ start: claim.index, end: claim.index + claim.fullMatch.length, text: claim.fullMatch, severity: 'high', reason: correction, category: 'factual error', sources });
+    }
   }
 
   if (claimTexts.length > 0) {
