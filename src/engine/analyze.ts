@@ -130,7 +130,7 @@ export class AnalysisEngine {
       signals.push({
         name: 'Factual Accuracy',
         score: factCheckResult.score,
-        weight: 25,
+        weight: factCheckResult.hasFactualError ? 60 : 25,
         details: factCheckResult.details,
         spans: factCheckResult.spans,
       });
@@ -161,15 +161,6 @@ export class AnalysisEngine {
     }
     const overallScore = totalWeight > 0 ? Math.round(weightedSum / totalWeight) : 50;
 
-    if (!mlResult.modelLoaded && heuristicSpans.length === 0 && (!urlSignal || urlSignal.spans.length === 0)) {
-      signals.push({
-        name: 'Overall Assessment',
-        score: 50,
-        weight: 10,
-        details: 'Limited analysis available. ML models are still downloading.',
-      });
-    }
-
     const allSpans = [...heuristicSpans, ...factCheckResult.spans];
     if (urlSignal && !urlContentFetched) {
       allSpans.push(...urlSignal.spans);
@@ -177,7 +168,9 @@ export class AnalysisEngine {
     allSpans.sort((a, b) => a.start - b.start);
 
     let verdict: Verdict;
-    if (overallScore >= 80) verdict = 'real';
+    if (factCheckResult.hasFactualError && overallScore < 50) {
+      verdict = 'fake';
+    } else if (overallScore >= 80) verdict = 'real';
     else if (overallScore >= 60) verdict = 'likely_real';
     else if (overallScore >= 40) verdict = 'uncertain';
     else if (overallScore >= 20) verdict = 'likely_fake';

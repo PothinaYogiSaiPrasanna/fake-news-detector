@@ -30,7 +30,7 @@ const CONFIG: Record<Verdict, { label: string; color: string; bg: string; icon: 
     icon: '🚨',
   },
   fake: {
-    label: 'Likely Fake',
+    label: 'Fake',
     color: 'text-red-800',
     bg: 'bg-red-100',
     icon: '🚨',
