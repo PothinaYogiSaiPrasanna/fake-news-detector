@@ -5,9 +5,9 @@ let modelLoading = false;
 let loadError: string | null = null;
 
 const MODEL_IDS = [
+  'onnx-community/gemma-3-1b-it-ONNX',
   'Xenova/LaMini-Flan-T5-783M',
   'onnx-community/Qwen2.5-1.5B-Instruct-q4',
-  'Xenova/Qwen1.5-1.8B',
 ];
 
 const SYSTEM_PROMPT = `You are TruthScope, a browser-based fact-checking assistant. Analyze the user's input and respond with ONLY valid JSON.
@@ -54,9 +54,11 @@ export async function loadModels(onProgress?: (msg: string) => void): Promise<bo
       const { pipeline } = await import('@huggingface/transformers');
 
       const pipeType = modelId.includes('Flan-T5') ? 'text2text-generation' : 'text-generation';
+      const isGemma = modelId.includes('gemma');
 
       generator = await (pipeline as any)(pipeType, modelId, {
         dtype: 'q4',
+        device: isGemma ? 'webgpu' : 'wasm',
         progress_callback: (p: any) => {
           if (typeof p === 'number') {
             onProgress?.(`Downloading: ${Math.round(p * 100)}%`);
@@ -160,7 +162,7 @@ export async function analyzeWithGemma(text: string): Promise<AnalysisResult> {
 
   try {
     const prompt = SYSTEM_PROMPT.replace('{text}', text.replace(/"/g, "'"));
-    const isT5 = MODEL_IDS[0].includes('Flan-T5');
+    const isT5 = generator.model.config?.model_type === 't5' || generator.model.config?.architectures?.[0]?.includes('T5');
 
     const result = await generator(prompt, {
       max_new_tokens: 512,
