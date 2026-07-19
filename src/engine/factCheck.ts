@@ -1,112 +1,66 @@
-import type { Source, SuspiciousSpan } from './types';
-
+import type { FactCheckSource, SuspiciousSpan } from './types';
+import { googleFactCheck } from './factSources/googleFactCheck';
+import { duckDuckGoSearch } from './factSources/duckDuckGo';
+import { newsSearch } from './factSources/newsSearch';
 const WIKI_API = 'https://en.wikipedia.org/api/rest_v1/page/summary';
 const WIKIDATA_API = 'https://www.wikidata.org/wiki/Special:EntityData';
 
 const POSITION_ALIASES: Record<string, string> = {
-  'pm': 'Prime Minister',
-  'prime minister': 'Prime Minister',
-  'president': 'President',
-  'vp': 'Vice President',
-  'vice president': 'Vice President',
-  'ceo': 'Chief Executive Officer',
-  'cfo': 'Chief Financial Officer',
-  'cto': 'Chief Technology Officer',
-  'chairman': 'Chairperson',
-  'chairperson': 'Chairperson',
-  'governor': 'Governor',
-  'mayor': 'Mayor',
-  'senator': 'Senator',
-  'minister': 'Minister',
-  'chancellor': 'Chancellor',
-  'secretary': 'Secretary',
-  'king': 'King',
-  'queen': 'Queen',
-  'speaker': 'Speaker',
-  'chief justice': 'Chief Justice',
+  'pm': 'Prime Minister', 'prime minister': 'Prime Minister',
+  'president': 'President', 'vp': 'Vice President',
+  'vice president': 'Vice President', 'ceo': 'Chief Executive Officer',
+  'governor': 'Governor', 'mayor': 'Mayor', 'senator': 'Senator',
+  'minister': 'Minister', 'chancellor': 'Chancellor',
+  'secretary': 'Secretary', 'king': 'King', 'queen': 'Queen',
+  'speaker': 'Speaker', 'chief justice': 'Chief Justice',
 };
 
+const INTERROGATIVES = /\b(who|what|which|when|where|why|how)\b/i;
 const ROLE_QUALIFIERS = /^(current|former|previous|next|acting|new|incumbent|designate)\s+/i;
 
-const INTERROGATIVES = /\b(who|what|which|when|where|why|how|whom|whose)\b/i;
-
-const QUESTION_RE = /^(who|what|which|when|where|why|how|is|are|was|were|do|does|did|has|have|had|can|could|will|would|shall|should|may|might)\b/i;
-
 interface ExtractedClaim {
-  subject: string;
-  role: string;
-  location: string;
-  fullMatch: string;
-  index: number;
+  subject: string; role: string; location: string; fullMatch: string; index: number;
 }
 
-interface CorrectionEvidence {
-  correctFact: string;
-  sources: Source[];
-}
-
-function isQuestion(text: string): boolean {
-  const trimmed = text.trim();
-  if (trimmed.endsWith('?')) return true;
-  if (QUESTION_RE.test(trimmed)) return true;
-  return false;
+let fetchJsonCounter = 0;
+async function fetchJson(url: string): Promise<any | null> {
+  fetchJsonCounter++;
+  try {
+    const res = await fetch(url, { signal: AbortSignal.timeout(6000) });
+    if (!res.ok) return null;
+    return await res.json();
+  } catch { return null; }
 }
 
 function extractClaims(text: string): ExtractedClaim[] {
   const claims: ExtractedClaim[] = [];
   const seen = new Set<string>();
   const pattern = /(\w[\w\s.]+?)\s+is\s+(?:the\s+|an?\s+)?(\w[\w\s]+?)(?:\s+of\s+(\w[\w\s]+))?\b/gi;
-
   pattern.lastIndex = 0;
   let match: RegExpExecArray | null;
   while ((match = pattern.exec(text)) !== null) {
     const key = `${match.index}-${match[0].length}`;
     if (seen.has(key)) continue;
     seen.add(key);
-
     const subject = match[1].trim();
-    const role = match[2].trim();
-    const location = (match[3] || '').trim();
-
     if (INTERROGATIVES.test(subject)) continue;
-    if (['who', 'what', 'which', 'when', 'where', 'why', 'how'].includes(subject.toLowerCase())) continue;
-
-    claims.push({
-      subject,
-      role,
-      location,
-      fullMatch: match[0],
-      index: match.index,
-    });
+    if (['who','what','which','when','where','why','how'].includes(subject.toLowerCase())) continue;
+    claims.push({ subject, role: match[2].trim(), location: (match[3] || '').trim(), fullMatch: match[0], index: match.index });
   }
   return claims;
 }
 
-function normalizeRole(role: string): { clean: string; full: string } {
+function normalizeRole(role: string): string {
   const cleaned = role.replace(ROLE_QUALIFIERS, '').trim();
-  const lower = cleaned.toLowerCase();
-  if (POSITION_ALIASES[lower]) return { clean: POSITION_ALIASES[lower], full: cleaned };
-  if (POSITION_ALIASES[role.toLowerCase()]) return { clean: POSITION_ALIASES[role.toLowerCase()], full: role };
-  return { clean: cleaned, full: role };
+  return POSITION_ALIASES[cleaned.toLowerCase()] || POSITION_ALIASES[role.toLowerCase()] || cleaned;
 }
 
 function fmtTitle(s: string): string {
   return s.split(/\s+/).map(w => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase()).join(' ');
 }
 
-async function fetchJson(url: string): Promise<any | null> {
-  try {
-    const res = await fetch(url, { signal: AbortSignal.timeout(6000) });
-    if (!res.ok) return null;
-    return await res.json();
-  } catch {
-    return null;
-  }
-}
-
 async function getWikidataId(title: string): Promise<string | null> {
-  const url = `https://en.wikipedia.org/w/api.php?action=query&prop=pageprops&titles=${encodeURIComponent(title)}&format=json&origin=*`;
-  const data = await fetchJson(url);
+  const data = await fetchJson(`https://en.wikipedia.org/w/api.php?action=query&prop=pageprops&titles=${encodeURIComponent(title)}&format=json&origin=*`);
   if (!data) return null;
   const pages = data?.query?.pages || {};
   for (const id of Object.keys(pages)) {
@@ -116,89 +70,71 @@ async function getWikidataId(title: string): Promise<string | null> {
   return null;
 }
 
-async function getDescription(id: string): Promise<string | null> {
-  const data = await fetchJson(`${WIKIDATA_API}/${id}.json`);
-  if (!data) return null;
-  return data?.entities?.[id]?.descriptions?.en?.value || null;
-}
-
 async function getEntityLabel(id: string): Promise<string | null> {
   const data = await fetchJson(`${WIKIDATA_API}/${id}.json`);
-  if (!data) return null;
   return data?.entities?.[id]?.labels?.en?.value || null;
 }
 
-async function getCurrentOfficeholder(
-  wikidataId: string,
-): Promise<{ personId: string; personName: string } | null> {
+async function getDescription(id: string): Promise<string | null> {
+  const data = await fetchJson(`${WIKIDATA_API}/${id}.json`);
+  return data?.entities?.[id]?.descriptions?.en?.value || null;
+}
+
+async function verifyWikidataClaim(claim: ExtractedClaim): Promise<{
+  correctFact: string;
+  personName: string;
+  personId: string;
+  positionTitle: string;
+} | null> {
+  const normalizedRole = normalizeRole(claim.role);
+  if (!normalizedRole) return null;
+
+  const searchTitle = claim.location
+    ? `${normalizedRole} of ${fmtTitle(claim.location)}`
+    : normalizedRole;
+
+  const wikidataId = await getWikidataId(searchTitle);
+  if (!wikidataId) return null;
+
   const entityData = await fetchJson(`${WIKIDATA_API}/${wikidataId}.json`);
-  const claims = entityData?.entities?.[wikidataId]?.claims;
-  if (!claims?.P1308) return null;
+  const claims_data = entityData?.entities?.[wikidataId]?.claims;
+  if (!claims_data?.P1308) return null;
 
-  const currentHolder = claims.P1308.find((c: any) => !c?.qualifiers?.P582);
-  if (!currentHolder) return null;
+  const holderClaim = claims_data.P1308.find((c: any) => !c?.qualifiers?.P582);
+  if (!holderClaim) return null;
 
-  const personId = currentHolder?.mainsnak?.datavalue?.value?.id;
+  const personId = holderClaim?.mainsnak?.datavalue?.value?.id;
   if (!personId) return null;
 
   const personName = await getEntityLabel(personId);
   if (!personName) return null;
 
-  return { personId, personName };
+  return { correctFact: `The current ${searchTitle} is ${personName}.`, personName, personId, positionTitle: searchTitle };
 }
 
-async function collectSources(
-  position: string,
-  actualPersonId: string,
-  actualPersonName: string,
-): Promise<Source[]> {
-  const sources: Source[] = [];
-  const seenUrls = new Set<string>();
+async function gatherSources(personId: string, personName: string, positionTitle: string): Promise<Array<{ title: string; url: string; snippet: string }>> {
+  const sources: Array<{ title: string; url: string; snippet: string }> = [];
+  const seen = new Set<string>();
+  const add = (title: string, url: string, snippet: string) => {
+    if (seen.has(url)) return;
+    seen.add(url);
+    if (sources.length < 5) sources.push({ title, url, snippet });
+  };
 
-  function addSource(title: string, url: string, snippet: string) {
-    if (seenUrls.has(url)) return;
-    seenUrls.add(url);
-    if (sources.length < 5) {
-      sources.push({ title, url: url.replace(/^http:/, 'https:'), snippet });
-    }
-  }
+  const personDesc = await getDescription(personId);
 
-  const personDesc = await getDescription(actualPersonId);
+  add(`Wikipedia: ${positionTitle}`, `https://en.wikipedia.org/wiki/${encodeURIComponent(positionTitle.replace(/\s+/g, '_'))}`, `Wikipedia article about ${positionTitle}`);
+  add(`Wikidata: ${personName}`, `https://www.wikidata.org/wiki/${personId}`, personDesc || `Structured data for ${personName}`);
+  add(`Wikipedia: ${personName}`, `https://en.wikipedia.org/wiki/${encodeURIComponent(personName.replace(/\s+/g, '_'))}`, `Wikipedia article about ${personName}`);
 
-  addSource(
-    `Wikipedia: ${position}`,
-    `https://en.wikipedia.org/wiki/${encodeURIComponent(position.replace(/\s+/g, '_'))}`,
-    `Wikipedia article about ${position}`,
-  );
-
-  addSource(
-    `Wikidata: ${actualPersonName}`,
-    `https://www.wikidata.org/wiki/${actualPersonId}`,
-    personDesc || `Structured data for ${actualPersonName}`,
-  );
-
-  addSource(
-    `Wikipedia: ${actualPersonName}`,
-    `https://en.wikipedia.org/wiki/${encodeURIComponent(actualPersonName.replace(/\s+/g, '_'))}`,
-    `Wikipedia article about ${actualPersonName}`,
-  );
-
-  const listTitle = `List of ${position}s`;
+  const listTitle = `List of ${positionTitle}s`;
   const listData = await fetchJson(`${WIKI_API}/${encodeURIComponent(listTitle)}`);
-  if (listData?.extract) {
-    addSource(
-      `Wikipedia: ${listTitle}`,
-      `https://en.wikipedia.org/wiki/${encodeURIComponent(listTitle.replace(/\s+/g, '_'))}`,
-      listData.extract.slice(0, 200),
-    );
-  }
+  if (listData?.extract) add(`Wikipedia: ${listTitle}`, `https://en.wikipedia.org/wiki/${encodeURIComponent(listTitle.replace(/\s+/g, '_'))}`, listData.extract.slice(0, 200));
 
-  const positionData = await fetchJson(`${WIKI_API}/${encodeURIComponent(position)}`);
+  const positionData = await fetchJson(`${WIKI_API}/${encodeURIComponent(positionTitle)}`);
   if (positionData?.extract) {
-    const existing = sources.find(s => s.title.includes(position));
-    if (existing) {
-      existing.snippet = positionData.extract.slice(0, 300);
-    }
+    const existing = sources.find(s => s.title.includes(positionTitle));
+    if (existing) existing.snippet = positionData.extract.slice(0, 300);
   }
 
   return sources;
@@ -209,81 +145,81 @@ export async function factCheck(text: string): Promise<{
   details: string;
   score: number;
   hasFactualError: boolean;
-  sources: Source[];
+  sources: Array<{ title: string; url: string; snippet: string }>;
+  factCheckSources: FactCheckSource[];
 }> {
-  if (isQuestion(text)) {
-    return {
-      spans: [],
-      details: 'Questions are not evaluated for factual accuracy.',
-      score: 100,
-      hasFactualError: false,
-      sources: [],
-    };
-  }
-
   const claims = extractClaims(text);
   const spans: SuspiciousSpan[] = [];
 
   if (claims.length === 0) {
-    return { spans, details: 'No factual claims detected.', score: 100, hasFactualError: false, sources: [] };
+    return { spans, details: 'No factual claims detected.', score: 100, hasFactualError: false, sources: [], factCheckSources: [] };
   }
-  let verifiedCorrect = 0;
+
+  const allSources: Array<{ title: string; url: string; snippet: string }> = [];
+  const allFactSources: FactCheckSource[] = [];
   let contradicted = 0;
-  const allCorrections: CorrectionEvidence[] = [];
+  let verified = 0;
+  let corrections: string[] = [];
+
+  const claimTexts = claims.map(c => c.fullMatch).filter(Boolean);
 
   for (const claim of claims) {
-    const { clean: normalizedRole } = normalizeRole(claim.role);
-    const searchTitle = claim.location
-      ? `${normalizedRole} of ${fmtTitle(claim.location)}`
-      : normalizedRole;
+    const verifyResult = await verifyWikidataClaim(claim);
+    if (!verifyResult) continue;
 
-    const wikidataId = await getWikidataId(searchTitle);
-    if (!wikidataId) continue;
-
-    const officeholder = await getCurrentOfficeholder(wikidataId);
-    if (!officeholder) continue;
-
-    const subjectLower = claim.subject.toLowerCase().trim();
-    const holderLower = officeholder.personName.toLowerCase().trim();
-
-    if (subjectLower === holderLower || subjectLower.includes(holderLower) || holderLower.includes(subjectLower)) {
-      verifiedCorrect++;
+    if (claim.subject.toLowerCase().trim() === verifyResult.personName.toLowerCase().trim() ||
+        claim.subject.toLowerCase().includes(verifyResult.personName.toLowerCase()) ||
+        verifyResult.personName.toLowerCase().includes(claim.subject.toLowerCase())) {
+      verified++;
       continue;
     }
 
     contradicted++;
-    const correctFact = `The current ${searchTitle} is ${officeholder.personName}, not ${claim.subject}.`;
-    const sources = await collectSources(searchTitle, officeholder.personId, officeholder.personName);
+    const correction = `The current ${verifyResult.positionTitle} is ${verifyResult.personName}, not ${claim.subject}.`;
+    corrections.push(correction);
+    const sources = await gatherSources(verifyResult.personId, verifyResult.personName, verifyResult.positionTitle);
+    allSources.push(...sources);
 
-    allCorrections.push({ correctFact, sources });
+    allFactSources.push({
+      name: `Wikidata: ${verifyResult.personName}`,
+      url: `https://www.wikidata.org/wiki/${verifyResult.personId}`,
+      snippet: correction,
+      result: 'contradicted',
+    });
 
     spans.push({
-      start: claim.index,
-      end: claim.index + claim.fullMatch.length,
-      text: claim.fullMatch,
-      severity: 'high',
-      reason: correctFact,
-      category: 'factual error',
-      sources,
+      start: claim.index, end: claim.index + claim.fullMatch.length,
+      text: claim.fullMatch, severity: 'high', reason: correction,
+      category: 'factual error', sources,
     });
   }
 
-  const allSources = allCorrections.flatMap(c => c.sources);
-  const uniqueSources = allSources.filter((s, i, arr) =>
-    arr.findIndex(x => x.url === s.url) === i
-  ).slice(0, 5);
+  if (claimTexts.length > 0) {
+    const claimQuery = claimTexts.join(' ').slice(0, 200);
 
-  if (contradicted === 0) {
-    const details = verifiedCorrect > 0
-      ? `Verified ${verifiedCorrect} claim${verifiedCorrect > 1 ? 's' : ''}. All factually correct.`
-      : 'No factual claims could be verified.';
-    return { spans, details, score: 100, hasFactualError: false, sources: [] };
+    const [gcfResult, ddgResult, newsResults] = await Promise.all([
+      googleFactCheck(claimQuery).catch(() => null),
+      duckDuckGoSearch(claimQuery).catch(() => null),
+      newsSearch(claimQuery).catch(() => [] as FactCheckSource[]),
+    ]);
+
+    if (gcfResult) allFactSources.push(gcfResult);
+    if (ddgResult) allFactSources.push(ddgResult);
+    allFactSources.push(...newsResults);
   }
 
-  const total = verifiedCorrect + contradicted;
-  const score = Math.max(5, Math.round(100 - (contradicted / total) * 95));
-  const correctionText = allCorrections.map(c => c.correctFact).join(' ');
-  const details = `Found ${contradicted} factual error${contradicted > 1 ? 's' : ''}. ${correctionText}`;
+  const uniqueSources = allSources.filter((s, i, arr) => arr.findIndex(x => x.url === s.url) === i).slice(0, 5);
+  const uniqueFactSources = allFactSources.filter((s, i, arr) => arr.findIndex(x => x.url === s.url) === i).slice(0, 5);
 
-  return { spans, details, score, hasFactualError: true, sources: uniqueSources };
+  if (contradicted === 0) {
+    const details = verified > 0
+      ? `Verified ${verified} claim${verified > 1 ? 's' : ''}. All factually correct.`
+      : 'No factual claims could be verified.';
+    return { spans, details, score: 100, hasFactualError: false, sources: uniqueSources.length > 0 ? uniqueSources : uniqueFactSources.slice(0, 3).map(s => ({ title: s.name, url: s.url, snippet: s.snippet })), factCheckSources: uniqueFactSources };
+  }
+
+  const total = verified + contradicted;
+  const score = Math.max(5, Math.round(100 - (contradicted / total) * 95));
+  const details = `Found ${contradicted} factual error${contradicted > 1 ? 's' : ''}. ${corrections.join(' ')}`;
+  return { spans, details, score, hasFactualError: true, sources: uniqueSources, factCheckSources: uniqueFactSources };
 }

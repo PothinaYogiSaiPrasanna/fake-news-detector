@@ -1,5 +1,9 @@
 export type InputType = 'text' | 'url' | 'image';
 
+export type IntentType = 'greeting' | 'question' | 'opinion' | 'claim' | 'unclear';
+
+export type Verdict = 'real' | 'likely_real' | 'uncertain' | 'likely_fake' | 'fake';
+
 export interface AnalysisInput {
   type: InputType;
   content: string;
@@ -31,13 +35,25 @@ export interface SignalScore {
   sources?: Source[];
 }
 
-export type Verdict = 'real' | 'likely_real' | 'uncertain' | 'likely_fake' | 'fake';
+export interface FactCheckSource {
+  name: string;
+  url: string;
+  snippet: string;
+  result: 'supported' | 'contradicted' | 'unverified';
+}
+
+export interface IntentResult {
+  type: IntentType;
+  label: string;
+  explanation: string;
+}
 
 export interface AnalysisResult {
-  overallScore: number;
-  verdict: Verdict;
-  signals: SignalScore[];
-  suspiciousSpans: SuspiciousSpan[];
+  intent: IntentResult;
+  overallScore?: number;
+  verdict?: Verdict;
+  signals?: SignalScore[];
+  suspiciousSpans?: SuspiciousSpan[];
   originalText: string;
   analyzedAt: Date;
   modelLoaded: boolean;

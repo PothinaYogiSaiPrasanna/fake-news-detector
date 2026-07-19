@@ -17,52 +17,52 @@ function App() {
         <div className="max-w-4xl mx-auto px-4 py-8 sm:py-12">
           <div className="text-center mb-8 sm:mb-12">
             <h1 className="text-3xl sm:text-4xl font-bold text-gray-900 mb-3">
-              Detect Misinformation
+              TruthScope
             </h1>
             <p className="text-base sm:text-lg text-gray-600 max-w-2xl mx-auto">
-              Analyze news articles, social media posts, URLs, or images for signs of misinformation.
+              Analyze news, claims, and statements for misinformation.
               <strong className="text-gray-700"> All processing is done in your browser</strong> —
               nothing is sent to any server.
             </p>
           </div>
 
-          {!result && !loading && (
-            <ErrorBoundary>
-              <InputSection onAnalyze={analyze} disabled={loading} />
-            </ErrorBoundary>
-          )}
+          <ErrorBoundary>
+            <InputSection onAnalyze={analyze} disabled={loading} />
+          </ErrorBoundary>
 
-          {loading && (
-            <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-8">
-              <LoadingSpinner
-                message="Analyzing content..."
-                progress={progress}
-              />
-              <p className="text-center text-xs text-gray-400 mt-4">
-                First analysis loads ML models (~200MB), subsequent runs are instant.
-              </p>
-            </div>
-          )}
+          <div className="mt-6">
+            {loading && (
+              <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-8">
+                <LoadingSpinner
+                  message="Analyzing content..."
+                  progress={progress}
+                />
+                <p className="text-center text-xs text-gray-400 mt-4">
+                  First analysis loads ML models (~200MB), subsequent runs are instant.
+                </p>
+              </div>
+            )}
 
-          {error && (
-            <div className="bg-red-50 border border-red-200 rounded-xl p-6 text-center">
-              <div className="text-3xl mb-2">❌</div>
-              <h2 className="text-lg font-semibold text-red-800 mb-2">Analysis Failed</h2>
-              <p className="text-red-600 mb-4">{error}</p>
-              <button
-                onClick={reset}
-                className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors"
-              >
-                Try Again
-              </button>
-            </div>
-          )}
+            {error && (
+              <div className="bg-red-50 border border-red-200 rounded-xl p-6 text-center">
+                <div className="text-3xl mb-2">⚠️</div>
+                <h2 className="text-lg font-semibold text-red-800 mb-2">Analysis Failed</h2>
+                <p className="text-red-600 mb-4">{error}</p>
+                <button
+                  onClick={reset}
+                  className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors"
+                >
+                  Try Again
+                </button>
+              </div>
+            )}
 
-          {result && !loading && (
-            <ErrorBoundary>
-              <ResultsPanel result={result} />
-            </ErrorBoundary>
-          )}
+            {result && !loading && (
+              <ErrorBoundary>
+                <ResultsPanel result={result} />
+              </ErrorBoundary>
+            )}
+          </div>
         </div>
       </main>
 

@@ -5,18 +5,12 @@ interface DownloadPDFButtonProps {
   result: AnalysisResult;
 }
 
-function getVerdictLabel(v: string) {
-  const map: Record<string, string> = {
-    real: 'Likely Real', likely_real: 'Likely Real', uncertain: 'Uncertain',
-    likely_fake: 'Likely Fake', fake: 'Likely Fake',
-  };
-  return map[v] || v;
-}
-
 function buildReportHTML(result: AnalysisResult): string {
   const date = new Date(result.analyzedAt).toLocaleString();
-  const verdict = getVerdictLabel(result.verdict);
-  const signalsHtml = result.signals.map(s => `
+  const signals = result.signals || [];
+  const suspiciousSpans = result.suspiciousSpans || [];
+
+  const signalsHtml = signals.map(s => `
     <div style="margin-bottom:12px;padding:8px 12px;background:#f9fafb;border-radius:8px">
       <div style="display:flex;justify-content:space-between;margin-bottom:4px">
         <span style="font-weight:500;font-size:14px;color:#374151">${s.name}</span>
@@ -29,12 +23,12 @@ function buildReportHTML(result: AnalysisResult): string {
     </div>
   `).join('');
 
-  const suspiciousHtml = result.suspiciousSpans.length > 0 ? `
+  const suspiciousHtml = suspiciousSpans.length > 0 ? `
     <div style="margin-top:24px;padding:12px;background:#fef2f2;border-radius:8px;border:1px solid #fecaca">
       <h3 style="font-size:14px;font-weight:600;color:#991b1b;margin:0 0 8px">
-        ${result.suspiciousSpans.length} Suspicious Pattern${result.suspiciousSpans.length > 1 ? 's' : ''} Detected
+        ${suspiciousSpans.length} Suspicious Pattern${suspiciousSpans.length > 1 ? 's' : ''} Detected
       </h3>
-      ${result.suspiciousSpans.slice(0, 10).map(span => `
+      ${suspiciousSpans.slice(0, 10).map(span => `
         <div style="font-size:12px;color:#7f1d1d;margin-bottom:4px">
           <strong>"${span.text.slice(0, 60)}"</strong> — ${span.reason}
         </div>
@@ -55,13 +49,15 @@ function buildReportHTML(result: AnalysisResult): string {
   <div style="border-bottom:2px solid #e5e7eb;padding-bottom:16px;margin-bottom:24px">
     <h1 style="font-size:28px;font-weight:700;margin:0">TruthScope Report</h1>
     <p style="font-size:12px;color:#6b7280;margin:4px 0 0">Generated: ${date}</p>
+    <p style="font-size:12px;color:#6b7280;margin:4px 0 0">Intent: ${result.intent.label}</p>
   </div>
+  ${result.overallScore !== undefined ? `
   <div style="margin-bottom:24px">
     <div style="font-size:14px;color:#6b7280;margin-bottom:4px">Overall Credibility Score</div>
     <div style="font-size:48px;font-weight:700">${result.overallScore}/100</div>
-    <div style="font-size:16px;color:#6b7280;margin-top:4px">${verdict}</div>
-  </div>
-  ${result.signals.length > 0 ? `<div style="margin-bottom:24px"><h2 style="font-size:16px;font-weight:600;margin-bottom:12px">Signal Analysis</h2>${signalsHtml}</div>` : ''}
+    ${result.verdict ? `<div style="font-size:16px;color:#6b7280;margin-top:4px">${result.verdict.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase())}</div>` : ''}
+  </div>` : ''}
+  ${signals.length > 0 ? `<div style="margin-bottom:24px"><h2 style="font-size:16px;font-weight:600;margin-bottom:12px">Signal Analysis</h2>${signalsHtml}</div>` : ''}
   <div><h2 style="font-size:16px;font-weight:600;margin-bottom:12px">Analyzed Text</h2>
     <p style="font-size:13px;line-height:1.6;white-space:pre-wrap">${text.replace(/</g, '&lt;').replace(/>/g, '&gt;')}</p>
   </div>
@@ -86,11 +82,8 @@ export function DownloadPDFButton({ result }: DownloadPDFButtonProps) {
       const pdfWidth = pdf.internal.pageSize.getWidth();
 
       pdf.html(html, {
-        x: 10,
-        y: 10,
-        width: pdfWidth - 20,
-        windowWidth: 800,
-        autoPaging: 'text',
+        x: 10, y: 10, width: pdfWidth - 20,
+        windowWidth: 800, autoPaging: 'text',
         margin: [10, 10, 10, 10],
       });
 
